@@ -42,7 +42,7 @@ displayed. The logo coding looks really messy and rather horrible. I'm sure
 there are better ways of doing this. Please drop me a line if you know how.
 **************************************************************************/
 #logo { 
-	background-image:url('/img/logo.png');
+	background-image:url('img/logo.png');
 	background-repeat: no-repeat; 
 	background-color: white; 
 	height:100px;
@@ -113,7 +113,7 @@ font-size: 12px;
 }
 
 #content li {
-	list-style: square url('/img/o.png');
+	list-style: square url('img/o.png');
 }
 
 /**************************************************************************
