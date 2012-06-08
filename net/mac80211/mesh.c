@@ -772,6 +772,11 @@ int ieee80211_start_mesh(struct ieee80211_sub_if_data *sdata)
 		return -ENOMEM;
 	}
 
+	WARN_ON(atomic_read(&ifmsh->ps.num_sta_ps));
+	mps_dbg(sdata, "starting mesh with beacon interval %d, "
+		"dtim_period %d\n", sdata->vif.bss_conf.beacon_int,
+		sdata->vif.bss_conf.dtim_period);
+
 	ieee80211_bss_info_change_notify(sdata, changed);
 
 	netif_carrier_on(sdata->dev);
@@ -873,6 +878,7 @@ ieee80211_mesh_rx_probe_req(struct ieee80211_sub_if_data *sdata,
 	hdr->frame_control = cpu_to_le16(IEEE80211_FTYPE_MGMT |
 					 IEEE80211_STYPE_PROBE_RESP);
 	memcpy(hdr->da, mgmt->sa, ETH_ALEN);
+	mpl_dbg(sdata, "sending probe resp. to %pM\n", hdr->da);
 	IEEE80211_SKB_CB(presp)->flags |= IEEE80211_TX_INTFL_DONT_ENCRYPT;
 	ieee80211_tx_skb(sdata, presp);
 	ieee80211_mps_awake_window_start(sdata);
@@ -1020,6 +1026,17 @@ void ieee80211_mesh_init_sdata(struct ieee80211_sub_if_data *sdata)
 {
 	struct ieee80211_if_mesh *ifmsh = &sdata->u.mesh;
 	static u8 zero_addr[ETH_ALEN] = {};
+
+#ifdef CONFIG_MAC80211_MESH_PS_DEBUG
+	struct ieee80211_local *local = sdata->local;
+	printk(KERN_DEBUG "Hardware capabilities:\n");
+	printk(KERN_DEBUG "IEEE80211_HW_SUPPORTS_PS\t\t\t %s\n", (local->hw.flags & IEEE80211_HW_SUPPORTS_PS) ? "true" : "false");
+	printk(KERN_DEBUG "IEEE80211_HW_SUPPORTS_DYNAMIC_PS\t\t %s\n", (local->hw.flags & IEEE80211_HW_SUPPORTS_DYNAMIC_PS) ? "true" : "false");
+	printk(KERN_DEBUG "IEEE80211_HW_SUPPORTS_UAPSD\t\t %s\n", (local->hw.flags & IEEE80211_HW_SUPPORTS_UAPSD) ? "true" : "false");
+	printk(KERN_DEBUG "IEEE80211_HW_PS_NULLFUNC_STACK\t\t %s\n", (local->hw.flags & IEEE80211_HW_PS_NULLFUNC_STACK) ? "true" : "false");
+	printk(KERN_DEBUG "IEEE80211_CONF_PS\t\t\t %s\n", (local->hw.conf.flags & IEEE80211_CONF_PS) ? "true" : "false");
+	printk(KERN_DEBUG "IEEE80211_HW_AP_LINK_PS\t\t\t %s\n", (local->hw.flags & IEEE80211_HW_AP_LINK_PS) ? "true" : "false");
+#endif
 
 	setup_timer(&ifmsh->housekeeping_timer,
 		    ieee80211_mesh_housekeeping_timer,
