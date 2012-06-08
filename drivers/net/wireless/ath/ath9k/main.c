@@ -132,7 +132,8 @@ void ath9k_ps_restore(struct ath_softc *sc)
 				     PS_WAIT_FOR_CAB |
 				     PS_WAIT_FOR_PSPOLL_DATA |
 				     PS_WAIT_FOR_TX_ACK |
-				     PS_WAIT_FOR_ANI))) {
+				     PS_WAIT_FOR_ANI |
+				     PS_MAC80211_CTL))) {
 		mode = ATH9K_PM_NETWORK_SLEEP;
 		if (ath9k_hw_btcoex_is_enabled(sc->sc_ah))
 			ath9k_btcoex_stop_gen_timer(sc);
@@ -1164,7 +1165,7 @@ static int ath9k_config(struct ieee80211_hw *hw, u32 changed)
 	 * We just prepare to enable PS. We have to wait until our AP has
 	 * ACK'd our null data frame to disable RX otherwise we'll ignore
 	 * those ACKs and end up retransmitting the same null data frames.
-	 * IEEE80211_CONF_CHANGE_PS is only passed by mac80211 for STA mode.
+	 * IEEE80211_CONF_CHANGE_PS is passed by mac80211 for STA or mesh mode.
 	 */
 	if (changed & IEEE80211_CONF_CHANGE_PS) {
 		unsigned long flags;
@@ -2321,6 +2322,58 @@ static void ath9k_sw_scan_complete(struct ieee80211_hw *hw)
 	sc->scanning = 0;
 }
 
+#ifdef CONFIG_MAC80211_MESH
+
+static void ath9k_mesh_wakeup_set(struct ath_softc *sc, u64 nexttbtt)
+{
+	struct ath_hw *ah = sc->sc_ah;
+	struct ath9k_beacon_state bs;
+	u32 nexttbtttu = TSF_TO_TU(nexttbtt >> 32, nexttbtt);
+
+	memset(&bs, 0, sizeof(bs));
+	bs.bs_nexttbtt = nexttbtttu;
+	bs.bs_nextdtim = nexttbtttu;
+	/* arbitrary high values to avoid frequent wakeups */
+	bs.bs_intval = 1000;
+	bs.bs_dtimperiod = 4000;
+	bs.bs_sleepduration = 1000;
+
+	ath9k_hw_set_sta_beacon_timers(ah, &bs);
+}
+
+static void ath9k_mesh_ps_doze(struct ieee80211_hw *hw, u64 nexttbtt)
+{
+	struct ath_softc *sc = hw->priv;
+	unsigned long flags;
+
+	ath9k_ps_wakeup(sc);
+	spin_lock_irqsave(&sc->sc_pm_lock, flags);
+	/* in mesh mode mac80211 checks beacons and CAB */
+	sc->ps_flags &= ~(PS_WAIT_FOR_BEACON |
+			  PS_WAIT_FOR_CAB |
+			  PS_MAC80211_CTL);
+	spin_unlock_irqrestore(&sc->sc_pm_lock, flags);
+
+	if (nexttbtt)
+		ath9k_mesh_wakeup_set(sc, nexttbtt);
+
+	ath9k_ps_restore(sc);
+}
+
+static void ath9k_mesh_ps_wakeup(struct ieee80211_hw *hw)
+{
+	struct ath_softc *sc = hw->priv;
+	unsigned long flags;
+
+	ath9k_ps_wakeup(sc);
+	spin_lock_irqsave(&sc->sc_pm_lock, flags);
+	sc->ps_flags |= PS_MAC80211_CTL;
+	spin_unlock_irqrestore(&sc->sc_pm_lock, flags);
+	ath9k_ps_restore(sc);
+}
+
+#endif
+
 struct ieee80211_ops ath9k_ops = {
 	.tx 		    = ath9k_tx,
 	.start 		    = ath9k_start,
@@ -2368,4 +2421,9 @@ struct ieee80211_ops ath9k_ops = {
 #endif
 	.sw_scan_start	    = ath9k_sw_scan_start,
 	.sw_scan_complete   = ath9k_sw_scan_complete,
+
+#ifdef CONFIG_MAC80211_MESH
+	.mesh_ps_doze	    = ath9k_mesh_ps_doze,
+	.mesh_ps_wakeup	    = ath9k_mesh_ps_wakeup,
+#endif
 };
