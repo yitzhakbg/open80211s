@@ -597,6 +597,77 @@ static int carl9170_init_interface(struct ar9170 *ar,
 	return err;
 }
 
+void carl9170_ps_check(struct ar9170 *ar)
+{
+	ieee80211_queue_work(ar->hw, &ar->ps_work);
+}
+
+/* caller must hold ar->mutex */
+static int carl9170_ps_update(struct ar9170 *ar)
+{
+	bool ps = false;
+	int err = 0;
+
+	if (!ar->ps.off_override)
+		ps = (ar->hw->conf.flags & IEEE80211_CONF_PS);
+
+	if (ps != ar->ps.state) {
+		err = carl9170_powersave(ar, ps);
+		if (err)
+			return err;
+
+		if (ar->ps.state && !ps) {
+			ar->ps.sleep_ms = jiffies_to_msecs(jiffies -
+				ar->ps.last_action);
+		}
+
+		if (ps)
+			ar->ps.last_slept = jiffies;
+
+		ar->ps.last_action = jiffies;
+		ar->ps.state = ps;
+	}
+
+	return 0;
+}
+
+static void carl9170_ps_work(struct work_struct *work)
+{
+	struct ar9170 *ar = container_of(work, struct ar9170,
+					 ps_work);
+	mutex_lock(&ar->mutex);
+	if (IS_STARTED(ar))
+		WARN_ON_ONCE(carl9170_ps_update(ar) != 0);
+	mutex_unlock(&ar->mutex);
+}
+
+//static void carl9170_mesh_doze(struct ieee80211_hw *hw)
+//{
+//	struct ar9170 *ar = hw->priv;
+//
+//	mutex_lock(&ar->mutex);
+//	ar->ps.off_override &= ~(PS_OFF_BCN | PS_OFF_MAC80211);
+//	if (IS_STARTED(ar))
+//		WARN_ON_ONCE(carl9170_ps_update(ar) != 0);
+//	mutex_unlock(&ar->mutex);
+//}
+//
+//static void carl9170_mesh_wakeup(struct ieee80211_hw *hw)
+//{
+//	struct ar9170 *ar = hw->priv;
+//
+//	mutex_lock(&ar->mutex);
+//	ar->ps.off_override |= PS_OFF_MAC80211;
+//	if (IS_STARTED(ar))
+//		WARN_ON_ONCE(carl9170_ps_update(ar) != 0);
+//	mutex_unlock(&ar->mutex);
+//}
+
+//static const struct ieee80211_mps_ops carl9170_mps_ops = {
+//	.hw_doze = carl9170_mesh_doze,
+//	.hw_wakeup = carl9170_mesh_wakeup,
+//};
+
 static int carl9170_op_add_interface(struct ieee80211_hw *hw,
 				     struct ieee80211_vif *vif)
 {
@@ -743,6 +814,9 @@ init:
 			goto unlock;
 	}
 
+//	if (ieee80211_vif_is_mesh(vif))
+//		ieee80211_mps_init(hw, &carl9170_mps_ops);
+
 unlock:
 	if (err && (vif_id >= 0)) {
 		vif_priv->active = false;
@@ -796,6 +870,7 @@ static void carl9170_op_remove_interface(struct ieee80211_hw *hw,
 					carl9170_get_main_vif(ar)));
 		} else {
 			carl9170_set_operating_mode(ar);
+//			ieee80211_mps_init(hw, NULL);
 		}
 	} else {
 		rcu_read_unlock();
@@ -822,50 +897,6 @@ unlock:
 	mutex_unlock(&ar->mutex);
 
 	synchronize_rcu();
-}
-
-void carl9170_ps_check(struct ar9170 *ar)
-{
-	ieee80211_queue_work(ar->hw, &ar->ps_work);
-}
-
-/* caller must hold ar->mutex */
-static int carl9170_ps_update(struct ar9170 *ar)
-{
-	bool ps = false;
-	int err = 0;
-
-	if (!ar->ps.off_override)
-		ps = (ar->hw->conf.flags & IEEE80211_CONF_PS);
-
-	if (ps != ar->ps.state) {
-		err = carl9170_powersave(ar, ps);
-		if (err)
-			return err;
-
-		if (ar->ps.state && !ps) {
-			ar->ps.sleep_ms = jiffies_to_msecs(jiffies -
-				ar->ps.last_action);
-		}
-
-		if (ps)
-			ar->ps.last_slept = jiffies;
-
-		ar->ps.last_action = jiffies;
-		ar->ps.state = ps;
-	}
-
-	return 0;
-}
-
-static void carl9170_ps_work(struct work_struct *work)
-{
-	struct ar9170 *ar = container_of(work, struct ar9170,
-					 ps_work);
-	mutex_lock(&ar->mutex);
-	if (IS_STARTED(ar))
-		WARN_ON_ONCE(carl9170_ps_update(ar) != 0);
-	mutex_unlock(&ar->mutex);
 }
 
 static int carl9170_update_survey(struct ar9170 *ar, bool flush, bool noise)
