@@ -1322,6 +1322,11 @@ static int sta_apply_parameters(struct ieee80211_local *local,
 			break;
 		}
 
+		/* set non-peer PM to active during authentication */
+		if (mask & BIT(NL80211_STA_FLAG_AUTHENTICATED) &&
+		    !(set & BIT(NL80211_STA_FLAG_AUTHENTICATED)))
+			changed |= ieee80211_mps_local_status_update(sdata);
+
 		if (params->local_pm)
 			changed |=
 			      ieee80211_mps_set_sta_local_pm(sta,
