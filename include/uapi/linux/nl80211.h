@@ -2423,6 +2423,8 @@ enum nl80211_mntr_flags {
  * @NL80211_MESH_POWER_DEEP_SLEEP: Deep sleep mode. The mesh STA will
  *	alternate between Active and Doze states, but may not wake up
  *	for neighbor's beacons.
+ * @NL80211_MESH_POWER_AUTO: Automatic per-STA power mode selection
+ *	based on incoming traffic on the respective peer link.
  *
  * @__NL80211_MESH_POWER_AFTER_LAST - internal use
  * @NL80211_MESH_POWER_MAX - highest possible power save level
@@ -2433,6 +2435,7 @@ enum nl80211_mesh_power_mode {
 	NL80211_MESH_POWER_ACTIVE,
 	NL80211_MESH_POWER_LIGHT_SLEEP,
 	NL80211_MESH_POWER_DEEP_SLEEP,
+	NL80211_MESH_POWER_AUTO,
 
 	__NL80211_MESH_POWER_AFTER_LAST,
 	NL80211_MESH_POWER_MAX = __NL80211_MESH_POWER_AFTER_LAST - 1

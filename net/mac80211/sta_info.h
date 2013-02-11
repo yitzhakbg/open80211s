@@ -289,6 +289,7 @@ struct sta_ampdu_mlme {
  * @local_pm: local link-specific power save mode
  * @peer_pm: peer-specific power save mode towards local STA
  * @nonpeer_pm: STA power save mode towards non-peer neighbors
+ * @frame_rate: number of frames received per beacon interval per AC
  * @beacon_interval: beacon interval of neighbor STA (in us)
  * @nexttbtt_tsf: next TBTT in local TSF units
  * @nexttbtt_jiffies: next TBTT in jiffies units
@@ -393,6 +394,7 @@ struct sta_info {
 	enum nl80211_mesh_power_mode local_pm;
 	enum nl80211_mesh_power_mode peer_pm;
 	enum nl80211_mesh_power_mode nonpeer_pm;
+	int frame_rate[IEEE80211_NUM_ACS];
 	u32 beacon_interval;
 	u64 nexttbtt_tsf;
 	unsigned long nexttbtt_jiffies;

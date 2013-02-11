@@ -337,6 +337,46 @@ static void mps_set_sta_nonpeer_pm(struct sta_info *sta,
 	ieee80211_mps_sta_status_update(sta);
 }
 
+/** ieee80211_mps_frame_rate_monitor - determine suitable per-STA power mode
+ *
+ * @sta: STA info that transmitted the frame
+ * @hdr: IEEE 802.11 Header
+ */
+void ieee80211_mps_sta_frame_rate_monitor(struct sta_info *sta,
+					  struct ieee80211_hdr *hdr)
+{
+	int tid, ac;
+	const int threshold_active[IEEE80211_NUM_ACS] = {8, 8, 16, 16};
+	const int threshold_sleep[IEEE80211_NUM_ACS] = {2, 2, 8, 8};
+	bool sleep = true;
+
+	if (sta->sdata->u.mesh.mshcfg.power_mode != NL80211_MESH_POWER_AUTO)
+		return;
+
+	if (ieee80211_is_data_qos(hdr->frame_control) &&
+	    !ieee80211_is_qos_nullfunc(hdr->frame_control)) {
+		tid = *ieee80211_get_qos_ctl(hdr) & IEEE80211_QOS_CTL_TID_MASK;
+		ac = ieee802_1d_to_ac[tid & 7];
+
+		if (++sta->frame_rate[ac] > threshold_active[ac])
+			ieee80211_mps_set_sta_local_pm(sta,
+					NL80211_MESH_POWER_ACTIVE);
+	} else if (ieee80211_is_beacon(hdr->frame_control)) {
+		/* XXX missing beacons? */
+
+		for (ac = 0; ac < IEEE80211_NUM_ACS; ac++) {
+			if (sta->frame_rate[ac] > threshold_sleep[ac])
+				sleep = false;
+
+			sta->frame_rate[ac] = 0;
+		}
+
+		if (sleep)
+			ieee80211_mps_set_sta_local_pm(sta,
+					NL80211_MESH_POWER_LIGHT_SLEEP);
+	}
+}
+
 /**
  * ieee80211_mps_rx_h_sta_process - frame receive handler for mesh powersave
  *
@@ -359,6 +399,9 @@ void ieee80211_mps_rx_h_sta_process(struct sta_info *sta,
 		/* check for mesh Peer Service Period trigger frames */
 		ieee80211_mpsp_trigger_process(ieee80211_get_qos_ctl(hdr),
 					       sta, false, false);
+
+		/* keep track of incoming frame rate for setting local PM */
+		ieee80211_mps_sta_frame_rate_monitor(sta, hdr);
 	} else {
 		/*
 		 * can only determine non-peer PS mode

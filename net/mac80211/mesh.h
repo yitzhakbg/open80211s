@@ -254,6 +254,8 @@ void ieee80211_mps_set_frame_flags(struct ieee80211_sub_if_data *sdata,
 				   struct sta_info *sta,
 				   struct ieee80211_hdr *hdr);
 void ieee80211_mps_sta_status_update(struct sta_info *sta);
+void ieee80211_mps_sta_frame_rate_monitor(struct sta_info *sta,
+					  struct ieee80211_hdr *hdr);
 void ieee80211_mps_rx_h_sta_process(struct sta_info *sta,
 				    struct ieee80211_hdr *hdr);
 void ieee80211_mpsp_trigger_process(u8 *qc, struct sta_info *sta,
