@@ -26,6 +26,9 @@
 		(sta && (s8) -ewma_read(&sta->avg_signal) > \
 		sdata->u.mesh.mshcfg.rssi_threshold))
 
+/* maximum number of missed beacons before peer link is closed */
+#define MESH_MAX_BEACON_MISS	14
+
 enum plink_event {
 	PLINK_UNDEFINED,
 	OPN_ACPT,
@@ -380,9 +383,14 @@ static void mesh_sta_info_init(struct ieee80211_sub_if_data *sdata,
 	spin_lock_bh(&sta->lock);
 	sta->last_rx = jiffies;
 
-	/* rates and capabilities don't change during peering */
-	if (sta->plink_state == NL80211_PLINK_ESTAB)
+	if (sta->plink_state == NL80211_PLINK_ESTAB) {
+		if (!(sdata->u.mesh.security & IEEE80211_MESH_SEC_AUTHED))
+			mod_timer(&sta->plink_timer, jiffies + usecs_to_jiffies(
+				sta->beacon_interval * MESH_MAX_BEACON_MISS));
+
+		/* rates and capabilities don't change during peering */
 		goto out;
+	}
 
 	if (sta->sta.supp_rates[band] != rates)
 		changed |= IEEE80211_RC_SUPP_RATES_CHANGED;
@@ -561,6 +569,7 @@ static void mesh_plink_timer(unsigned long data)
 		[NL80211_PLINK_HOLDING] = "HOLDING",
 		[NL80211_PLINK_BLOCKED] = "BLOCKED"
 	};
+	u32 changed = 0;
 
 	/*
 	 * This STA is valid because sta_info_destroy() will
@@ -624,6 +633,18 @@ static void mesh_plink_timer(unsigned long data)
 		del_timer(&sta->plink_timer);
 		mesh_plink_fsm_restart(sta);
 		spin_unlock_bh(&sta->lock);
+		break;
+	case NL80211_PLINK_ESTAB:
+		/* beacon loss timer */
+		mpl_dbg(sdata, "Mesh plink for %pM beacon loss\n",
+			sta->sta.addr);
+		changed |= __mesh_plink_deactivate(sta);
+		sta->plink_state = NL80211_PLINK_HOLDING;
+		mod_plink_timer(sta, mshcfg->dot11MeshHoldingTimeout);
+		spin_unlock_bh(&sta->lock);
+		changed |= mesh_set_ht_prot_mode(sdata);
+		changed |= mesh_set_short_slot_time(sdata);
+		ieee80211_bss_info_change_notify(sdata, changed);
 		break;
 	default:
 		spin_unlock_bh(&sta->lock);

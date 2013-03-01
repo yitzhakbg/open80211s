@@ -862,6 +862,21 @@ void ieee80211_mps_sta_tbtt_timeout(unsigned long data)
 	spin_unlock_bh(&sta->lock);
 }
 
+static void mps_clear_recipient_flags(struct ieee80211_sub_if_data *sdata)
+{
+	struct ieee80211_local *local = sdata->local;
+	struct sta_info *sta;
+
+	mutex_lock(&local->sta_mtx);
+	list_for_each_entry(sta, &local->sta_list, list) {
+		if (sta->sdata != sdata)
+			continue;
+		else
+			clear_sta_flag(sta, WLAN_STA_MPSP_RECIPIENT);
+	}
+	mutex_unlock(&local->sta_mtx);
+}
+
 /**
  * ieee80211_mps_awake_window_start - start Awake Window on SWBA/PRETBTT
  *
@@ -875,6 +890,12 @@ void ieee80211_mps_awake_window_start(struct ieee80211_sub_if_data *sdata)
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_if_mesh *ifmsh = &sdata->u.mesh;
 	unsigned long timeout;
+
+	/*
+	 * Reset MPSP flag as timeout here. In case of ongoing MPSP it is set
+	 * again on next frame RX during awake window.
+	 */
+	mps_clear_recipient_flags(sdata);
 
 	if (!local->mps_enabled)
 		return;
