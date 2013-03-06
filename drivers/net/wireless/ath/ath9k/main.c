@@ -1035,7 +1035,8 @@ static void ath9k_enable_ps(struct ath_softc *sc)
 	struct ath_common *common = ath9k_hw_common(ah);
 
 	sc->ps_enabled = true;
-	if (!(ah->caps.hw_caps & ATH9K_HW_CAP_AUTOSLEEP)) {
+	if (!(ah->caps.hw_caps & ATH9K_HW_CAP_AUTOSLEEP) &&
+	    ah->opmode != NL80211_IFTYPE_MESH_POINT) {
 		if ((ah->imask & ATH9K_INT_TIM_TIMER) == 0) {
 			ah->imask |= ATH9K_INT_TIM_TIMER;
 			ath9k_hw_set_interrupts(ah);
@@ -2344,6 +2345,7 @@ static void ath9k_mesh_wakeup_set(struct ath_softc *sc, u64 nexttbtt)
 static void ath9k_mesh_ps_doze(struct ieee80211_hw *hw, u64 nexttbtt)
 {
 	struct ath_softc *sc = hw->priv;
+	struct ath_hw *ah = sc->sc_ah;
 	unsigned long flags;
 
 	ath9k_ps_wakeup(sc);
@@ -2356,6 +2358,17 @@ static void ath9k_mesh_ps_doze(struct ieee80211_hw *hw, u64 nexttbtt)
 
 	if (nexttbtt)
 		ath9k_mesh_wakeup_set(sc, nexttbtt);
+
+	if (!(ah->caps.hw_caps & ATH9K_HW_CAP_AUTOSLEEP)) {
+		if (nexttbtt &&
+		    !(ah->imask & ATH9K_INT_TIM_TIMER)) {
+			ah->imask |= ATH9K_INT_TIM_TIMER;
+			ath9k_hw_set_interrupts(ah);
+		} else if (ah->imask & ATH9K_INT_TIM_TIMER) {
+			ah->imask &= ~ATH9K_INT_TIM_TIMER;
+			ath9k_hw_set_interrupts(ah);
+		}
+	}
 
 	ath9k_ps_restore(sc);
 }

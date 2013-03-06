@@ -599,23 +599,6 @@ static void ath9k_beacon_config_adhoc(struct ath_softc *sc,
 	ath9k_beacon_init(sc, nexttbtt, intval);
 }
 
-static void ath9k_beacon_config_mesh(struct ath_softc *sc,
-				     struct ath_beacon_config *conf)
-{
-	struct ath9k_beacon_state bs;
-
-	/*
-	 * when PS is enabled, ath9k_hw_setrxabort is set.
-	 * to wake up again to receive peers' beacons, we set an
-	 * arbitrary initial value for sleepduration here
-	 */
-	memset(&bs, 0, sizeof(bs));
-	bs.bs_sleepduration = IEEE80211_MS_TO_TU(100);
-	ath9k_hw_set_sta_beacon_timers(sc->sc_ah, &bs);
-
-	ath9k_beacon_config_adhoc(sc, conf);
-}
-
 bool ath9k_allow_beacon_config(struct ath_softc *sc, struct ieee80211_vif *vif)
 {
 	struct ath_common *common = ath9k_hw_common(sc->sc_ah);
@@ -724,10 +707,8 @@ void ath9k_set_beacon(struct ath_softc *sc)
 		ath9k_beacon_config_ap(sc, cur_conf);
 		break;
 	case NL80211_IFTYPE_ADHOC:
-		ath9k_beacon_config_adhoc(sc, cur_conf);
-		break;
 	case NL80211_IFTYPE_MESH_POINT:
-		ath9k_beacon_config_mesh(sc, cur_conf);
+		ath9k_beacon_config_adhoc(sc, cur_conf);
 		break;
 	case NL80211_IFTYPE_STATION:
 		ath9k_beacon_config_sta(sc, cur_conf);
