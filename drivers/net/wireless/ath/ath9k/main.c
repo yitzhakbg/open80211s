@@ -2359,16 +2359,11 @@ static void ath9k_mesh_ps_doze(struct ieee80211_hw *hw, u64 nexttbtt)
 	if (nexttbtt)
 		ath9k_mesh_wakeup_set(sc, nexttbtt);
 
-	if (!(ah->caps.hw_caps & ATH9K_HW_CAP_AUTOSLEEP)) {
-		if (nexttbtt &&
-		    !(ah->imask & ATH9K_INT_TIM_TIMER)) {
-			ah->imask |= ATH9K_INT_TIM_TIMER;
-			ath9k_hw_set_interrupts(ah);
-		} else if (ah->imask & ATH9K_INT_TIM_TIMER) {
-			ah->imask &= ~ATH9K_INT_TIM_TIMER;
-			ath9k_hw_set_interrupts(ah);
-		}
-	}
+	if (!(ah->caps.hw_caps & ATH9K_HW_CAP_AUTOSLEEP) &&
+            !nexttbtt != !(ah->imask & ATH9K_INT_TIM_TIMER)) {
+                ah->imask ^= ATH9K_INT_TIM_TIMER;
+                ath9k_hw_set_interrupts(ah);
+        }
 
 	ath9k_ps_restore(sc);
 }
